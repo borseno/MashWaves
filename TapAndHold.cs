@@ -2,18 +2,35 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using System.Linq;
+using System;
 
 public class TapAndHold : MonoBehaviour
 {
     readonly float yToAdd = 0.25f; // amount of y coords to add for each new mash
     bool isHeld;
     bool gameLost;
-    GameObject latestMash, currentMash;
+    bool positionIsBeingChanged;
+    List<GameObject> mashPull;
     new GameObject camera;
+    Task makeBiggerCoroutine;
+
+    GameObject CurrentMash { get { return mashPull.LastOrDefault(); } }
+    GameObject PreviousMash
+    {
+        get
+        {
+            if (mashPull.Count > 1)
+                return mashPull[mashPull.Count - 2];
+            else
+                return null;
+        }
+    }
 
     void Start()
     {
-        latestMash = currentMash = GameObject.FindGameObjectWithTag("FirstCylinder");
+        mashPull = new List<GameObject>() { GameObject.FindGameObjectWithTag("FirstCylinder") };
+
         camera = GameObject.FindGameObjectWithTag("MainCamera");
     }
 
@@ -30,78 +47,92 @@ public class TapAndHold : MonoBehaviour
             }
             else return;
         }
-
-        if (Input.GetMouseButton(0) || Input.GetMouseButton(1))
-        {
-            if (isHeld)
-            {
-                currentMash.transform.localScale += new Vector3(0.01f, 0, 0.01f);
-
-                if (currentMash.transform.localScale.x >= latestMash.transform.localScale.x * 1.1f) // x = z, no need to check z
-                {
-                    OnLosingTheGame();
-                }
-            }
-            else
-            {
-                isHeld = true;
-
-                GameObject newMash = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-
-                Vector3 latestPosition = latestMash.transform.position;
-
-                newMash.transform.position = new Vector3(latestPosition.x, latestPosition.y + yToAdd, latestPosition.z);
-                newMash.transform.localScale = new Vector3(0, yToAdd, 0);
-
-                currentMash = Instantiate(newMash);
-
-                latestPosition = newMash.transform.position;
-                camera.transform.position = camera.transform.position + new Vector3(0, yToAdd, 0);
-            }
-        }
         else
         {
-            //  isHeld = false; // ?? can be removed i guess
-
-            if (currentMash != latestMash)
+            if (Input.GetMouseButton(0) || Input.GetMouseButton(1))
             {
-                if ((currentMash.transform.localScale - latestMash.transform.localScale).x >= 0)
+                if (isHeld)
+                {
+                    CurrentMash.transform.localScale += new Vector3(0.01f, 0, 0.01f);
+
+                    if (CurrentMash.transform.localScale.x >= PreviousMash.transform.localScale.x * 1.1f) // x = z, no need to check z
+                    {
+                        OnLosingTheGame();
+                    }
+                }
+                else
+                {
+                    isHeld = true;
+
+                    GameObject newMash = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+
+                    Vector3 latestPosition = CurrentMash.transform.position;
+
+                    newMash.transform.position = new Vector3(latestPosition.x, latestPosition.y + yToAdd, latestPosition.z);
+                    newMash.transform.localScale = new Vector3(0f, yToAdd, 0f);
+
+                    mashPull.Add(Instantiate(newMash));
+
+                    //latestPosition = newMash.transform.position;
+                    camera.transform.position = camera.transform.position + new Vector3(0f, yToAdd, 0f);
+                }
+            }
+            else if (!positionIsBeingChanged && mashPull.Count > 1)
+            {
+                if ((CurrentMash.transform.localScale - PreviousMash.transform.localScale).x > 0)
                 {
                     OnLosingTheGame();
                     return;
                 }
-                else if ((currentMash.transform.localScale - latestMash.transform.localScale).x >= -0.5f)
+                else if ((CurrentMash.transform.localScale - PreviousMash.transform.localScale).x >= -0.5f)
                     OnPerfectMove();
-
-                latestMash = currentMash;
             }
         }
     }
     void OnLosingTheGame()
     {
-        currentMash.GetComponent<Renderer>().material.color = Color.red;
+        CurrentMash.GetComponent<Renderer>().material.color = Color.red;
         camera.transform.position = camera.transform.position + new Vector3(0, 0, -4f);
         gameLost = true;
         Invoke("DestroyCurrentMash", 0.5f);
     }
     void DestroyCurrentMash()
     {
-        Destroy(currentMash);
+        Destroy(CurrentMash);
     }
     void OnPerfectMove()
     {
-        currentMash.transform.localScale += new Vector3(0.4f, 0, 0.4f);
+        Task.FinishedHandler previousWave = (m) => {
+            Vector2 toSubstract = PreviousMash.transform.position + new Vector3(0.3f, 0, 0.3f) - (PreviousMash.transform.position * 0.8f);
+            ChangePosition(PreviousMash, new Vector3(0.3f, 0, 0.3f), toSubstract);
+        };
+
+        ChangePosition(CurrentMash, new Vector3(0.4f, 0, 0.4f), new Vector3(0.2f, 0, 0.2f), previousWave);
     }
     IEnumerator MakeBigger(GameObject gameObject, Vector3 value)
     {
-        float valueToSubstract = 1.0f;
-        Vector3 vectorToSubstract = new Vector3(valueToSubstract, valueToSubstract, valueToSubstract);
+        Vector3 valueToAddOnIteration = value / 10;
 
-        while (value.x > float.Epsilon)
+        while ((value.x > float.Epsilon && valueToAddOnIteration.x > 0)
+            || (value.x < float.Epsilon && valueToAddOnIteration.x < 0))
         {
-            gameObject.transform.localScale += value - (value - vectorToSubstract);
-            value -= vectorToSubstract;
+            gameObject.transform.localScale += valueToAddOnIteration;
+            value -= valueToAddOnIteration;
             yield return new WaitForSeconds(0.01f);
         }
+    }
+    void ChangePosition(GameObject toChange, Vector3 bigger, Vector3 smaller, params Task.FinishedHandler[] actions)
+    {
+        positionIsBeingChanged = true;
+        
+        makeBiggerCoroutine = new Task(MakeBigger(toChange, bigger));
+        makeBiggerCoroutine.Start();
+        makeBiggerCoroutine.Finished +=
+            delegate (bool manually)
+            {
+                new Task(MakeBigger(toChange, smaller * -1)).Finished += (m) => { positionIsBeingChanged = false; };
+            };
+        foreach (var i in actions)
+            makeBiggerCoroutine.Finished += i;
     }
 }
