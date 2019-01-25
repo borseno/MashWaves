@@ -7,7 +7,6 @@ using System;
 
 public class TapAndHold : MonoBehaviour
 {
-    readonly float yScale = 0.25f; // y scale for every mash
     bool isHeld;
     bool gameLost;
     bool scaleIsBeingChanged;
@@ -70,16 +69,19 @@ public class TapAndHold : MonoBehaviour
                 {
                     isHeld = true;
 
-                    GameObject newMash = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-
                     Vector3 latestPosition = CurrentMash.transform.position;
 
-                    newMash.transform.position = new Vector3(latestPosition.x, latestPosition.y + yScale * 2, latestPosition.z);
-                    newMash.transform.localScale = new Vector3(0f, yScale, 0f);
+                    GameObject newMash = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+
+                    newMash.transform.position = new Vector3(
+                        latestPosition.x, 
+                        latestPosition.y + SettingsReader.Instance.Settings.MashScaleY * 2, 
+                        latestPosition.z);
+                    newMash.transform.localScale = new Vector3(0f, SettingsReader.Instance.Settings.MashScaleY, 0f);
 
                     mashPull.Add(Instantiate(newMash));
 
-                    camera.transform.position = camera.transform.position + new Vector3(0f, yScale * 2, 0f);
+                    camera.transform.position = camera.transform.position + new Vector3(0f, SettingsReader.Instance.Settings.MashScaleY * 2, 0f);
                 }
             }
             else if (!perfectMoveMashes.Contains(CurrentMash) && !scaleIsBeingChanged && mashPull.Count > 1)
@@ -100,7 +102,7 @@ public class TapAndHold : MonoBehaviour
     void OnLosingTheGame()
     {
         CurrentMash.GetComponent<Renderer>().material.color = Color.red;
-        camera.transform.position -= new Vector3(0, 0, mashPull.Count * yScale);
+        camera.transform.position -= new Vector3(0, 0, mashPull.Count * SettingsReader.Instance.Settings.MashScaleY);
         gameLost = true;
         Invoke("DestroyCurrentMash", 0.5f);
     }
@@ -118,7 +120,7 @@ public class TapAndHold : MonoBehaviour
 
         ChangeSize(CurrentMash,
             CurrentMash.transform.localScale + new Vector3(0.4f, 0, 0.4f),
-            (CurrentMash.transform.localScale + new Vector3(0.4f, 0, 0.4f)).x > 1 ? new Vector3(1, yScale, 1) :
+            (CurrentMash.transform.localScale + new Vector3(0.4f, 0, 0.4f)).x > 1 ? new Vector3(1, SettingsReader.Instance.Settings.MashScaleY, 1) :
             CurrentMash.transform.localScale + new Vector3(0.4f, 0, 0.4f) - new Vector3(0.2f, 0, 0.2f),
             0f, forLoopWontIterate);
 
