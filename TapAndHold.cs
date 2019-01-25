@@ -45,6 +45,9 @@ public class TapAndHold : MonoBehaviour
 
     void Update()
     {
+        if (Input.GetKey(key: KeyCode.Escape))
+            Application.Quit();
+
         if (scaleIsBeingChanged) // no actions allowed during animations
             return;
 
@@ -55,7 +58,7 @@ public class TapAndHold : MonoBehaviour
         {
             // after losing the game the player should stop 
             // holding his mouse button for a moment in order to click and restart the game
-            if ((Input.GetMouseButton(0) || Input.GetMouseButton(1)) && !isHeld) 
+            if ((Input.GetMouseButton(0) || Input.GetMouseButton(1)) && !isHeld)
             {
                 SceneManager.LoadScene(SceneManager.GetActiveScene().name); // restart the game
             }
@@ -67,10 +70,10 @@ public class TapAndHold : MonoBehaviour
             {
                 if (isHeld)
                 {
-                    CurrentMash.transform.localScale += 
+                    CurrentMash.transform.localScale +=
                         new Vector3(
-                            settings.MashGrowSpeed, 
-                            0, 
+                            settings.MashGrowSpeed,
+                            0,
                             settings.MashGrowSpeed
                             );
 
@@ -81,20 +84,21 @@ public class TapAndHold : MonoBehaviour
                 }
                 else
                 {
-                    isHeld = true; 
+                    isHeld = true;
 
                     Vector3 latestPosition = CurrentMash.transform.position;
 
                     GameObject newMash = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
 
                     newMash.transform.position = new Vector3(
-                        latestPosition.x, 
-                        latestPosition.y + settings.MashScaleY * 2, 
+                        latestPosition.x,
+                        latestPosition.y + settings.MashScaleY * 2,
                         latestPosition.z
                         );
                     newMash.transform.localScale = new Vector3(0f, settings.MashScaleY, 0f);
 
                     mashPull.Add(Instantiate(newMash));
+                    Destroy(newMash);
 
                     camera.transform.position += new Vector3(0f, settings.MashScaleY * 2, 0f);
                 }
@@ -106,6 +110,8 @@ public class TapAndHold : MonoBehaviour
                     GameObject.Destroy(CurrentMash);
                     mashPull.RemoveAt(mashPull.Count - 1);
                     camera.transform.position -= new Vector3(0f, settings.MashScaleY * 2, 0f);
+
+                    return;
                 }
 
                 // Game over: current mash > previous mash || current mash size < min mash size
@@ -114,7 +120,7 @@ public class TapAndHold : MonoBehaviour
                     OnLosingTheGame();
                     return;
                 } // Perfect move: previous mash size >= current mash size for max deviation
-                else if ((CurrentMash.transform.localScale - PreviousMash.transform.localScale).x 
+                else if ((CurrentMash.transform.localScale - PreviousMash.transform.localScale).x
                     >= -settings.MaxDeviation)
                 {
                     OnPerfectMove();
@@ -140,7 +146,7 @@ public class TapAndHold : MonoBehaviour
         scaleIsBeingChanged = true;
         bool changeOnlyCurrent = false; //perfectMoveMashes.Contains(mashPull[mashPull.Count - 2]);
 
-        Vector3 currentMashFirstScale = 
+        Vector3 currentMashFirstScale =
             CurrentMash.transform.localScale + new Vector3(settings.CurrentMashScaleToAdd, 0, settings.CurrentMashScaleToAdd);
         Vector3 currentMashSecondScale = currentMashFirstScale.x > settings.MaxMashScale
             ? new Vector3(settings.MaxMashScale, settings.MashScaleY, settings.MaxMashScale)
@@ -154,27 +160,27 @@ public class TapAndHold : MonoBehaviour
             bool underSecondPerfectMash = false;
             for (int i = startingPosition; i >= 0; i--)
             {
-                Vector3 otherMashFirstScale = 
+                Vector3 otherMashFirstScale =
                     mashPull[i].transform.localScale + new Vector3(
-                        settings.OtherMashesScaleToAdd, 
-                        0, 
+                        settings.OtherMashesScaleToAdd,
+                        0,
                         settings.OtherMashesScaleToAdd
                         );
                 Vector3 otherMashSecondScale = new Vector3(
                     mashPull[i].transform.localScale.x * settings.OtherMashesScaleToMultiplyBy,
-                    mashPull[i].transform.localScale.y, 
+                    mashPull[i].transform.localScale.y,
                     mashPull[i].transform.localScale.z * settings.OtherMashesScaleToMultiplyBy
                     );
 
                 ChangeSize(
-                    mashPull[i], 
-                    otherMashFirstScale, 
+                    mashPull[i],
+                    otherMashFirstScale,
                     underSecondPerfectMash ? mashPull[i].transform.localScale : otherMashSecondScale,
                     (startingPosition - i) / 10f + 0.3f,
                     i == 0 || perfectMoveMashes.Contains(mashPull[i - 1])
                     );
 
-                    underSecondPerfectMash = underSecondPerfectMash || perfectMoveMashes.Contains(mashPull[i]);
+                underSecondPerfectMash = underSecondPerfectMash || perfectMoveMashes.Contains(mashPull[i]);
             }
         }
     }

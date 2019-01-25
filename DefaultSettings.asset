@@ -10,6 +10,14 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 1f111da0eac61424fa6be18eb4252dd2, type: 3}
-  m_Name: New Settings
+  m_Name: DefaultSettings
   m_EditorClassIdentifier: 
   mashGrowSpeed: 0.01
+  mashScaleY: 0.25
+  minMashScale: 0.1
+  maxMashScale: 1
+  maxDeviation: 0.05
+  currentMashScaleToAdd: 0.4
+  currentMashScaleToSubstract: 0.2
+  otherMashesScaleToAdd: 0.3
+  otherMashesScaleToMultiplyBy: 0.8
