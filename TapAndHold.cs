@@ -102,16 +102,31 @@ public class TapAndHold : MonoBehaviour
     }
     void OnPerfectMove()
     {
-        Task.FinishedHandler previousWave = (m) => {
-            Vector2 toSubstract = PreviousMash.transform.position + new Vector3(0.3f, 0, 0.3f) - (PreviousMash.transform.position * 0.8f);
-            ChangePosition(PreviousMash, new Vector3(0.3f, 0, 0.3f), toSubstract);
-        };
+        Task.FinishedHandler[] wavesForPrevious = new Task.FinishedHandler[mashPull.Count - 1];
+        int index = -9999;
+        int reversedIndex = -9999;
 
-        ChangePosition(CurrentMash, new Vector3(0.4f, 0, 0.4f), new Vector3(0.2f, 0, 0.2f), previousWave);
+        for (index = mashPull.Count - 2; index >= 0; index--)
+        {
+            reversedIndex = mashPull.Count - 2 - index;
+
+            wavesForPrevious[reversedIndex] = (m) =>
+            {
+                Vector3 toSubstract = mashPull[index].transform.position + new Vector3(0.3f, 0, 0.3f) - (mashPull[index].transform.position * 0.8f);
+                ChangePosition(mashPull[index], new Vector3(0.3f, 0, 0.3f), toSubstract);
+
+                Debug.Log("Index: " + index.ToString() + 
+                    " ReversedIndex: " + reversedIndex.ToString() + 
+                    " wavesForPreviousLength: " + wavesForPrevious.Length.ToString() +
+                    " mashPullCount: " + mashPull.Count.ToString());
+            };
+        }
+
+        ChangePosition(CurrentMash, new Vector3(0.4f, 0, 0.4f), new Vector3(0.2f, 0, 0.2f), wavesForPrevious);
     }
     IEnumerator MakeBigger(GameObject gameObject, Vector3 value)
     {
-        Vector3 valueToAddOnIteration = value / 10;
+        Vector3 valueToAddOnIteration = new Vector3(value.x / 10f, value.y / 10f, value.z / 10f);
 
         while ((value.x > float.Epsilon && valueToAddOnIteration.x > 0)
             || (value.x < float.Epsilon && valueToAddOnIteration.x < 0))
@@ -123,16 +138,21 @@ public class TapAndHold : MonoBehaviour
     }
     void ChangePosition(GameObject toChange, Vector3 bigger, Vector3 smaller, params Task.FinishedHandler[] actions)
     {
+
         positionIsBeingChanged = true;
-        
+
         makeBiggerCoroutine = new Task(MakeBigger(toChange, bigger));
-        makeBiggerCoroutine.Start();
         makeBiggerCoroutine.Finished +=
             delegate (bool manually)
             {
                 new Task(MakeBigger(toChange, smaller * -1)).Finished += (m) => { positionIsBeingChanged = false; };
             };
-        foreach (var i in actions)
-            makeBiggerCoroutine.Finished += i;
+        
+        
+
+
+
+        makeBiggerCoroutine.Start();
+
     }
 }
