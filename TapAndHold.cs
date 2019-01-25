@@ -7,14 +7,15 @@ using System;
 
 public class TapAndHold : MonoBehaviour
 {
-    readonly float yToAdd = 0.25f; // amount of y coords to add for each new mash
+    readonly float yScale = 0.25f; // y scale for every mash
     bool isHeld;
     bool gameLost;
-    bool positionIsBeingChanged;
+    bool scaleIsBeingChanged;
     List<GameObject> mashPull;
+    List<GameObject> perfectMoveMashes;
     new GameObject camera;
-    Task makeBiggerCoroutine;
-
+    Queue<object[]> Parameters;
+    
     GameObject CurrentMash { get { return mashPull.LastOrDefault(); } }
     GameObject PreviousMash
     {
@@ -30,12 +31,17 @@ public class TapAndHold : MonoBehaviour
     void Start()
     {
         mashPull = new List<GameObject>() { GameObject.FindGameObjectWithTag("FirstCylinder") };
+        perfectMoveMashes = new List<GameObject>();
+        Parameters = new Queue<object[]>();
 
         camera = GameObject.FindGameObjectWithTag("MainCamera");
     }
 
     void Update()
     {
+        if (scaleIsBeingChanged)
+            return;
+
         if (!Input.GetMouseButton(0) && !Input.GetMouseButton(1))
             isHeld = false;
 
@@ -68,31 +74,33 @@ public class TapAndHold : MonoBehaviour
 
                     Vector3 latestPosition = CurrentMash.transform.position;
 
-                    newMash.transform.position = new Vector3(latestPosition.x, latestPosition.y + yToAdd, latestPosition.z);
-                    newMash.transform.localScale = new Vector3(0f, yToAdd, 0f);
+                    newMash.transform.position = new Vector3(latestPosition.x, latestPosition.y + yScale * 2, latestPosition.z);
+                    newMash.transform.localScale = new Vector3(0f, yScale, 0f);
 
                     mashPull.Add(Instantiate(newMash));
 
-                    //latestPosition = newMash.transform.position;
-                    camera.transform.position = camera.transform.position + new Vector3(0f, yToAdd, 0f);
+                    camera.transform.position = camera.transform.position + new Vector3(0f, yScale * 2, 0f);
                 }
             }
-            else if (!positionIsBeingChanged && mashPull.Count > 1)
+            else if (!perfectMoveMashes.Contains(CurrentMash) && !scaleIsBeingChanged && mashPull.Count > 1)
             {
-                if ((CurrentMash.transform.localScale - PreviousMash.transform.localScale).x > 0)
+                if ((CurrentMash.transform.localScale - PreviousMash.transform.localScale).x > 0 
+                    || CurrentMash.transform.localScale.x < 0.1f)
                 {
                     OnLosingTheGame();
                     return;
                 }
-                else if ((CurrentMash.transform.localScale - PreviousMash.transform.localScale).x >= -0.5f)
+                else if ((CurrentMash.transform.localScale - PreviousMash.transform.localScale).x >= -0.05f)
+                {
                     OnPerfectMove();
+                }
             }
         }
     }
     void OnLosingTheGame()
     {
         CurrentMash.GetComponent<Renderer>().material.color = Color.red;
-        camera.transform.position = camera.transform.position + new Vector3(0, 0, -4f);
+        camera.transform.position -= new Vector3(0, 0, mashPull.Count * yScale);
         gameLost = true;
         Invoke("DestroyCurrentMash", 0.5f);
     }
@@ -102,57 +110,53 @@ public class TapAndHold : MonoBehaviour
     }
     void OnPerfectMove()
     {
-        Task.FinishedHandler[] wavesForPrevious = new Task.FinishedHandler[mashPull.Count - 1];
-        int index = -9999;
-        int reversedIndex = -9999;
+        perfectMoveMashes.Add(CurrentMash);
 
-        for (index = mashPull.Count - 2; index >= 0; index--)
+        scaleIsBeingChanged = true;
+
+        bool forLoopWontIterate = perfectMoveMashes.Contains(mashPull[mashPull.Count - 2]);
+
+        ChangeSize(CurrentMash,
+            CurrentMash.transform.localScale + new Vector3(0.4f, 0, 0.4f),
+            (CurrentMash.transform.localScale + new Vector3(0.4f, 0, 0.4f)).x > 1 ? new Vector3(1, yScale, 1) :
+            CurrentMash.transform.localScale + new Vector3(0.4f, 0, 0.4f) - new Vector3(0.2f, 0, 0.2f),
+            0f, forLoopWontIterate);
+
+        if (!forLoopWontIterate)
         {
-            reversedIndex = mashPull.Count - 2 - index;
-
-            wavesForPrevious[reversedIndex] = (m) =>
+            int startingPosition = mashPull.Count - 2;
+            for (int i = startingPosition; i >= 0 && !perfectMoveMashes.Contains(mashPull[i]); i--)
             {
-                Vector3 toSubstract = mashPull[index].transform.position + new Vector3(0.3f, 0, 0.3f) - (mashPull[index].transform.position * 0.8f);
-                ChangePosition(mashPull[index], new Vector3(0.3f, 0, 0.3f), toSubstract);
-
-                Debug.Log("Index: " + index.ToString() + 
-                    " ReversedIndex: " + reversedIndex.ToString() + 
-                    " wavesForPreviousLength: " + wavesForPrevious.Length.ToString() +
-                    " mashPullCount: " + mashPull.Count.ToString());
-            };
-        }
-
-        ChangePosition(CurrentMash, new Vector3(0.4f, 0, 0.4f), new Vector3(0.2f, 0, 0.2f), wavesForPrevious);
-    }
-    IEnumerator MakeBigger(GameObject gameObject, Vector3 value)
-    {
-        Vector3 valueToAddOnIteration = new Vector3(value.x / 10f, value.y / 10f, value.z / 10f);
-
-        while ((value.x > float.Epsilon && valueToAddOnIteration.x > 0)
-            || (value.x < float.Epsilon && valueToAddOnIteration.x < 0))
-        {
-            gameObject.transform.localScale += valueToAddOnIteration;
-            value -= valueToAddOnIteration;
-            yield return new WaitForSeconds(0.01f);
+                ChangeSize(mashPull[i],
+                    mashPull[i].transform.localScale + new Vector3(0.3f, 0, 0.3f),
+                    new Vector3(mashPull[i].transform.localScale.x * 0.8f,
+                    mashPull[i].transform.localScale.y, mashPull[i].transform.localScale.z * 0.8f),
+                    (startingPosition - i) / 10f + 0.3f,
+                    i == 0 || perfectMoveMashes.Contains(mashPull[i - 1]));
+            }
         }
     }
-    void ChangePosition(GameObject toChange, Vector3 bigger, Vector3 smaller, params Task.FinishedHandler[] actions)
+    void ChangeSize(GameObject toChange, Vector3 first, Vector3 second, float delayTime = 0f, bool final = false)
     {
+        Parameters.Enqueue(new object[] { toChange, first });
+        Invoke("ChangeSize", 0.0f + delayTime);
+        Parameters.Enqueue(new object[] { toChange, second });
+        Invoke("ChangeSize", 0.1f + delayTime);
 
-        positionIsBeingChanged = true;
+        if (final)
+            Invoke("SetScaleIsBeingChangedToFalse", 0.1f + delayTime + 0.1f);
+    }
+    void ChangeSize()
+    {
+        object[] parameter = Parameters.Dequeue();
 
-        makeBiggerCoroutine = new Task(MakeBigger(toChange, bigger));
-        makeBiggerCoroutine.Finished +=
-            delegate (bool manually)
-            {
-                new Task(MakeBigger(toChange, smaller * -1)).Finished += (m) => { positionIsBeingChanged = false; };
-            };
-        
-        
+        GameObject toChange = (GameObject)parameter[0];
+        Vector3 newScale = (Vector3)parameter[1];
 
-
-
-        makeBiggerCoroutine.Start();
-
+        toChange.transform.localScale = newScale;
+    }
+    void SetScaleIsBeingChangedToFalse()
+    {
+        scaleIsBeingChanged = false;
     }
 }
